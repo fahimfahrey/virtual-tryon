@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import DressList from "@/components/DressList";
 import ResultModal from "@/components/ResultModal";
+import { DRESSES } from "@/lib/dresses";
 
 const WebcamCrop = dynamic(() => import("@/components/WebcamCrop"), {
   ssr: false,
@@ -15,13 +16,7 @@ const PROVIDERS = [
   { id: "gemini", label: "✦ Gemini", endpoint: "/api/tryon-gemini" },
 ];
 
-const DRESSES = [
-  { id: 1, name: "Red Evening Gown", file: "/dresses/dress1.png" },
-  { id: 2, name: "Blue Cocktail Dress", file: "/dresses/dress2.png" },
-  { id: 3, name: "Floral Summer Dress", file: "/dresses/dress3.png" },
-  { id: 4, name: "Black Formal Dress", file: "/dresses/dress4.png" },
-  { id: 5, name: "White Bridal Gown", file: "/dresses/dress5.png" },
-];
+const DRESSES_FALLBACK = [];
 
 export default function Home() {
   const [selectedDress, setSelectedDress] = useState(null);

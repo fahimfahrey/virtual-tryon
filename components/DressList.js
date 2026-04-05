@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
+import SearchBar from "@/components/SearchBar";
 
 const DRESS_COLORS = {
   1: ["#8b1a1a", "#c0392b"],
@@ -36,9 +37,21 @@ const ASPECT = {
 
 export default function DressList({ dresses, selected, onSelect, disabled }) {
   const [view, setView] = useState("large");
+  // Initialize with prop dresses so there's no empty flash before first search response
+  const [searchResults, setSearchResults] = useState({ items: dresses, total: dresses.length });
+  const [isSearching, setIsSearching] = useState(false);
+
+  const handleResults = useCallback((items, total) => {
+    setSearchResults({ items, total });
+  }, []);
+
+  const { items: displayDresses, total: itemCount } = searchResults;
 
   return (
     <div className="dress-panel-inner">
+      {/* ── Search ── */}
+      <SearchBar onResults={handleResults} onSearching={setIsSearching} />
+
       {/* ── View mode toolbar ── */}
       <div className="view-toolbar">
         <span className="view-toolbar-label">VIEW</span>
@@ -55,13 +68,15 @@ export default function DressList({ dresses, selected, onSelect, disabled }) {
             </button>
           ))}
         </div>
-        <span className="view-count">{dresses.length} ITEMS</span>
+        <span className="view-count">
+          {isSearching ? "…" : `${itemCount.toLocaleString("en-IN")} ITEMS`}
+        </span>
       </div>
 
       {/* ── Dress grid / list ── */}
       <div className={`dress-list view-${view}`}>
         <AnimatePresence mode="popLayout">
-          {dresses.map((dress, i) => {
+          {displayDresses.map((dress, i) => {
             const isSelected = selected?.id === dress.id;
             const colors = DRESS_COLORS[dress.id] || ["#444", "#666"];
             return (
