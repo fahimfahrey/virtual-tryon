@@ -1062,11 +1062,14 @@ body {
 
 .view-collage .dress-card {
   width: 100%;
+  overflow: visible;
 }
 
 /* Regular cards: portrait cells */
 .view-collage .dress-img-natural {
   height: 160px;
+  border-radius: 3px;
+  overflow: hidden;
 }
 
 .view-collage .dress-img-natural img {
