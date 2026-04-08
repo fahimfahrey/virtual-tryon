@@ -8,6 +8,9 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
+      <head>
+        <script src="https://js.puter.com/v2/" defer></script>
+      </head>
       <body>{children}</body>
     </html>
   );

@@ -68,12 +68,13 @@ export async function POST(request) {
       ? ` Additional styling: ${extraPrompt}.`
       : "";
     const geminiPrompt =
-      `Create a professional e-commerce fashion photo. ` +
-      `The first image is a person (full body). The second image is a "${dressName}" dress product photo. ` +
-      `Let the person from the first image wear the dress from the second image. ` +
-      `Generate a realistic, full-body shot preserving the person's exact face, body shape, posture, skin tone, and original background. ` +
-      `Adjust lighting and shadows naturally. Do not alter the person's face or body beyond the dress overlay. ` +
-      `Output: high-resolution photorealistic portrait, suitable for e-commerce.` +
+      `Virtual try-on task: dress the person from the first image in the exact outfit shown in the second image. ` +
+      `CRITICAL RULES — follow every one strictly: ` +
+      `(1) Reproduce the outfit EXACTLY as shown in the second image: every color, pattern, embroidery, print, texture, fabric, cut, neckline, collar, sleeve length, hem, and decorative detail must be pixel-perfect identical — do NOT alter, simplify, recolor, or reinterpret any design element whatsoever. ` +
+      `(2) Preserve the person's face COMPLETELY: same facial features, skin tone, complexion, expression, hair style, hair color, and head position — do NOT change anything above the shoulders. ` +
+      `(3) Keep the person's body shape, posture, height proportions, and original background unchanged. ` +
+      `(4) Only replace the clothing — nothing else in the image should change. ` +
+      `Output: photorealistic full-body portrait, sharp details, natural lighting, suitable for e-commerce.` +
       stylingNote;
 
     // ── 4. Call Gemini ────────────────────────────────────────────────────────

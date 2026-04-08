@@ -821,15 +821,32 @@ body {
   cursor: not-allowed;
 }
 
-/* Natural-ratio image container — constrained by view-mode height */
+/* Natural-ratio image container
+   Key: aspect-ratio gives the block its height,
+   img is absolutely positioned to fill it */
 .dress-img-natural {
   position: relative;
   width: 100%;
+  aspect-ratio: 3 / 4;          /* portrait — overridden per view below */
   background: rgba(255, 255, 255, 0.015);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   overflow: hidden;
+  display: block;
+}
+
+/* The actual image — fills the aspect-ratio box */
+.dress-img-el {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 1;
+  /* objectFit set inline per view */
+}
+
+/* Tiles variant — square */
+.dress-img-tiles {
+  aspect-ratio: 1 / 1;
 }
 
 /* Large mode — zero constraints, image pushes its own height */
@@ -1031,13 +1048,7 @@ body {
 }
 
 .view-medium .dress-img-natural {
-  height: 200px;
-}
-
-.view-medium .dress-img-natural img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+  aspect-ratio: 3 / 4;
 }
 
 /* SMALL — 2 columns, compact cards, no body text */
@@ -1052,13 +1063,7 @@ body {
 }
 
 .view-small .dress-img-natural {
-  height: 120px;
-}
-
-.view-small .dress-img-natural img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+  aspect-ratio: 3 / 4;
 }
 
 /* TILES — 2 columns, square cells, image fills (cover), no text */
@@ -1075,13 +1080,6 @@ body {
 
 .view-tiles .dress-img-natural {
   aspect-ratio: 1 / 1;
-  height: auto;
-}
-
-.view-tiles .dress-img-natural img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 /* LIST — single column horizontal rows */
@@ -1106,6 +1104,7 @@ body {
     border-color 0.2s,
     box-shadow 0.2s;
   text-align: left;
+  min-height: 72px;
 }
 
 .view-list-card:hover:not(.disabled) {
@@ -1140,6 +1139,15 @@ body {
 .list-info {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+}
+
+.list-info .dress-card-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  font-size: 10px;
 }
 
 /* CONTENT — image left ~35%, rich text right */
@@ -1165,6 +1173,7 @@ body {
     box-shadow 0.2s;
   text-align: left;
   position: relative;
+  min-height: 100px;
 }
 
 .view-content-card:hover:not(.disabled) {
@@ -1185,7 +1194,7 @@ body {
 
 .content-img {
   position: relative;
-  width: 90px;
+  width: 80px;
   flex-shrink: 0;
   background: rgba(255, 255, 255, 0.02);
   display: flex;
@@ -1196,10 +1205,25 @@ body {
 
 .content-body {
   flex: 1;
+  min-width: 0;
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  overflow: hidden;
+}
+
+.content-body .dress-card-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 10px;
+}
+
+.content-body .dress-card-meta {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .content-desc {
@@ -1208,6 +1232,7 @@ body {
   margin-top: 6px;
   line-height: 1.5;
   font-style: italic;
+  display: none; /* hide on small panels */
 }
 
 /* COLLAGE — masonry-like 2-col with alternating sizes */
@@ -1222,26 +1247,21 @@ body {
   overflow: visible;
 }
 
-/* Regular cards: portrait cells */
+/* Regular cards: portrait aspect ratio */
 .view-collage .dress-img-natural {
-  height: 160px;
+  aspect-ratio: 3 / 4;
+  height: auto;
   border-radius: 3px;
   overflow: hidden;
 }
 
-.view-collage .dress-img-natural img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-/* Every 3rd card spans 2 columns and is taller */
+/* Every 3rd card spans 2 columns */
 .view-collage .dress-card:nth-child(3n) {
   grid-column: span 2;
 }
 
 .view-collage .dress-card:nth-child(3n) .dress-img-natural {
-  height: 240px;
+  aspect-ratio: 16 / 9;
 }
 
 /* CTA button */

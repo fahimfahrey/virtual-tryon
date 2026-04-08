@@ -13,13 +13,10 @@ const DRESS_COLORS = {
   5: ["#e8e8e8", "#d4af37"],
 };
 
-// View mode definitions
+// View mode definitions — M, S, Tiles removed
 const VIEW_MODES = [
-  { id: "large", label: "L", title: "Large", icon: "⬛" },
-  { id: "medium", label: "M", title: "Medium", icon: "▪" },
-  { id: "small", label: "S", title: "Small", icon: "·" },
-  { id: "tiles", label: "⊞", title: "Tiles", icon: "⊞" },
-  { id: "list", label: "≡", title: "List", icon: "≡" },
+  { id: "large",   label: "L", title: "Large",   icon: "⬛" },
+  { id: "list",    label: "≡", title: "List",    icon: "≡" },
   { id: "content", label: "❐", title: "Content", icon: "❐" },
   { id: "collage", label: "⊟", title: "Collage", icon: "⊟" },
 ];
@@ -110,8 +107,6 @@ function DressCard({
   const isList = view === "list";
   const isContent = view === "content";
   const isCollage = view === "collage";
-  const isSmall = view === "small";
-  const isTiles = view === "tiles";
 
   // List view: horizontal compact row
   if (isList) {
@@ -254,6 +249,8 @@ function DressCard({
   }
 
   // All other views: vertical card with full-ratio image
+  const isLarge = view === "large";
+
   return (
     <motion.button
       className={`dress-card${isSelected ? " selected" : ""}${disabled ? " disabled" : ""}`}
@@ -262,61 +259,43 @@ function DressCard({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      transition={{
-        delay: index * 0.04,
-        type: "spring",
-        stiffness: 260,
-        damping: 24,
-      }}
+      transition={{ delay: index * 0.04, type: "spring", stiffness: 260, damping: 24 }}
       whileHover={!disabled ? { y: -2, scale: 1.01 } : {}}
       whileTap={!disabled ? { scale: 0.98 } : {}}
       aria-label={`Select ${dress.name}`}
       aria-pressed={isSelected}
     >
-      {/* Image — Large mode: plain img so full natural height is never clipped */}
-      <div
-        className={view === "large" ? "dress-img-full" : "dress-img-natural"}
-      >
-        <span className="dress-placeholder-icon">👗</span>
-        {view === "large" ? (
-          // eslint-disable-next-line @next/next/no-img-element
+      {isLarge ? (
+        <div className="dress-img-full">
+          <span className="dress-placeholder-icon">👗</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={dress.file}
             alt={dress.name}
-            style={{
-              width: "100%",
-              height: "auto",
-              display: "block",
-              position: "relative",
-              zIndex: 1,
-            }}
+            style={{ width: "100%", height: "auto", display: "block", position: "relative", zIndex: 1 }}
             loading="lazy"
-            onError={(e) => {
-              e.target.style.display = "none";
-            }}
+            onError={(e) => { e.target.style.display = "none"; }}
           />
-        ) : (
-          <Image
+        </div>
+      ) : (
+        <div className="dress-img-natural">
+          <span className="dress-placeholder-icon">👗</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
             src={dress.file}
             alt={dress.name}
-            fill
-            sizes="(max-width: 340px) 50vw, 300px"
-            style={{ objectFit: isTiles ? "cover" : "contain", zIndex: 1 }}
+            className="dress-img-el"
+            style={{ objectFit: "contain" }}
             loading="lazy"
-            onError={(e) => {
-              e.target.style.display = "none";
-            }}
+            onError={(e) => { e.target.style.display = "none"; }}
           />
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Info — hidden in small/tiles to save space */}
-      {!isSmall && !isTiles && (
+      {/* Card body — shown for all remaining views */}
+      {!isLarge && (
         <div className="dress-card-body">
-          <div className="dress-card-name">
-            {dress.name}
-            {dress.price ? ` · ${dress.price}` : ""}
-          </div>
+          <div className="dress-card-name">{dress.name}</div>
           <div className="dress-card-meta">SS24 · COLLECTION</div>
           <div className="dress-card-colors">
             {colors.map((c, ci) => (
@@ -326,8 +305,16 @@ function DressCard({
         </div>
       )}
 
-      {/* Tiles/small: name tooltip on hover */}
-      {(isSmall || isTiles) && <div className="tile-name">{dress.name}</div>}
+      {isLarge && (
+        <div className="dress-card-body">
+          <div className="dress-card-name">{dress.name}</div>
+          <div className="dress-card-colors">
+            {colors.map((c, ci) => (
+              <div key={ci} className="color-dot" style={{ background: c }} />
+            ))}
+          </div>
+        </div>
+      )}
 
       <AnimatePresence>
         {isSelected && (
@@ -338,7 +325,7 @@ function DressCard({
             exit={{ opacity: 0 }}
             transition={{ type: "spring", stiffness: 400, damping: 20 }}
           >
-            {isSmall || isTiles ? "✓" : "SELECTED"}
+            SELECTED
           </motion.div>
         )}
       </AnimatePresence>

@@ -35,7 +35,7 @@ export async function POST(request) {
 
     const payload = {
       key: apiKey,
-      prompt: `A person wearing a ${dressName}, full body, photorealistic, high quality, fashion photography`,
+      prompt: `Virtual try-on: a person wearing the exact "${dressName}" outfit with every design detail, color, pattern, and texture reproduced precisely as in the reference. Preserve the person's exact face, skin tone, body shape, and background. Only replace the clothing, change nothing else. Full body, photorealistic, high quality, fashion photography.`,
       negative_prompt: "blurry, distorted, low quality, artifacts, deformed",
       init_image: userImage,
       control_image: dressBase64,

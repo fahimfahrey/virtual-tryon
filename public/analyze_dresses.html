@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script src="https://js.puter.com/v2/"></script>
+<h3>Dress Image Analyzer — paste filenames below and click Analyze</h3>
+<textarea id="files" rows="10" cols="60" placeholder="One filename per line, e.g. dress6.jpg"></textarea><br><br>
+<button onclick="run()">Analyze</button>
+<pre id="out" style="font-size:12px;white-space:pre-wrap;margin-top:16px;"></pre>
+<script>
+const log = t => {
+  document.getElementById('out').textContent += t + '\n';
+};
+
+async function toDataURL(filename) {
+  const resp = await fetch(`/dresses/${filename}`);
+  const blob = await resp.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+const prompt = `Analyze this dress/outfit image. Reply ONLY with a single JSON object, no markdown, no explanation:
+{"name":"3-5 word descriptive product name","category":"one of: Bridal|Formal|Evening|Cocktail|Summer|Casual|Party|Traditional","color":"primary color word","style":"one of: Gown|Maxi|Mini|Midi|Jumpsuit|Saree|Lehenga|Kurta|Suit"}`;
+
+async function run() {
+  document.getElementById('out').textContent = '';
+  const raw = document.getElementById('files').value.trim();
+  const images = raw.split('\n').map(s => s.trim()).filter(Boolean);
+
+  if (!images.length) { log('No filenames entered.'); return; }
+
+  log(`Analyzing ${images.length} image(s)...\n`);
+  const results = [];
+
+  for (const img of images) {
+    log(`Analyzing: ${img}`);
+    try {
+      const dataURL = await toDataURL(img);
+      const resp = await puter.ai.chat([
+        {
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: dataURL } },
+            { type: 'text', text: prompt }
+          ]
+        }
+      ], { model: 'gpt-5.4-nano' });
+
+      const text = resp?.message?.content?.[0]?.text
+        ?? resp?.message?.content
+        ?? String(resp);
+
+      log(`  → ${text}`);
+      results.push({ file: img, result: text });
+    } catch(e) {
+      log(`  ERROR: ${e?.message ?? JSON.stringify(e)}`);
+      results.push({ file: img, result: 'ERROR' });
+    }
+    await new Promise(r => setTimeout(r, 800));
+  }
+
+  log('\n\n=== FINAL RESULTS (copy this) ===');
+  log(JSON.stringify(results, null, 2));
+}
+</script>
+</body>
+</html>
