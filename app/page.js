@@ -121,6 +121,12 @@ export default function Home() {
             throw new Error("Puter.js not loaded yet. Please wait a moment and try again.");
           }
 
+          // Ensure user is signed into Puter (required for API calls)
+          const isSignedIn = await puter.auth.isSignedIn();
+          if (!isSignedIn) {
+            await puter.auth.signIn();
+          }
+
           // Build side-by-side collage: [user | dress] → single PNG base64
           const collageBase64 = await buildCollage(croppedImage, dress.file);
 
