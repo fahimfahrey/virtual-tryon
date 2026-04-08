@@ -17,7 +17,67 @@ const PROVIDERS = [
   { id: "puter", label: "⚡ Puter", endpoint: null }, // client-side via puter.js
 ];
 
-const DRESSES_FALLBACK = [];
+/** Loads an image element, first trying with crossOrigin then without */
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const tryLoad = (withCors) => {
+      const img = new Image();
+      if (withCors) img.crossOrigin = "anonymous";
+      img.onload = () => resolve(img);
+      img.onerror = () => {
+        if (withCors) tryLoad(false); // retry without CORS header
+        else reject(new Error(`Failed to load image: ${src}`));
+      };
+      img.src = src;
+    };
+    tryLoad(true);
+  });
+}
+
+/**
+ * Fetches a same-origin dress image as a blob URL so canvas won't be tainted.
+ * Falls back to direct src if fetch fails.
+ */
+async function loadDressImage(dressFile) {
+  try {
+    const res = await fetch(dressFile);
+    if (!res.ok) throw new Error("fetch failed");
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const img = await loadImage(blobUrl);
+    URL.revokeObjectURL(blobUrl);
+    return img;
+  } catch {
+    return loadImage(dressFile);
+  }
+}
+
+/**
+ * Combines the user photo (left) and dress image (right) into a single
+ * side-by-side PNG collage. Returns raw base64 (no data URL prefix).
+ */
+async function buildCollage(userDataUrl, dressFile) {
+  const [userImg, dressImg] = await Promise.all([
+    loadImage(userDataUrl),
+    loadDressImage(dressFile),
+  ]);
+
+  const h = Math.max(userImg.height, dressImg.height, 512);
+  const scale = (img) => h / img.height;
+  const uw = Math.round(userImg.width * scale(userImg));
+  const dw = Math.round(dressImg.width * scale(dressImg));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = uw + dw;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+
+  ctx.drawImage(userImg, 0, 0, uw, h);
+  ctx.drawImage(dressImg, uw, 0, dw, h);
+
+  // Canvas always outputs PNG — mime type is always image/png
+  return canvas.toDataURL("image/png").split(",")[1];
+}
 
 export default function Home() {
   const [selectedDress, setSelectedDress] = useState(null);
@@ -55,26 +115,28 @@ export default function Home() {
         let outputImage;
 
         if (provider.id === "puter") {
-          // ── Client-side via puter.js (no API route needed) ──────────────────
-          const puter = window.puter;
-          if (!puter) throw new Error("Puter.js not loaded yet. Please wait a moment and try again.");
+          // ── Client-side via puter.js ─────────────────────────────────────────
+          // puter is a global injected by https://js.puter.com/v2/
+          if (typeof puter === "undefined") {
+            throw new Error("Puter.js not loaded yet. Please wait a moment and try again.");
+          }
+
+          // Build side-by-side collage: [user | dress] → single PNG base64
+          const collageBase64 = await buildCollage(croppedImage, dress.file);
 
           const prompt =
-            `Virtual try-on: dress the person in this photo with the exact "${dress.name}" outfit shown in the reference. ` +
-            `CRITICAL RULES — follow every one strictly: ` +
-            `(1) Reproduce the dress EXACTLY as-is: every color, pattern, embroidery, print, texture, cut, neckline, sleeve length, and hem must be pixel-perfect identical to the reference dress image — do NOT alter, simplify, or reinterpret any design detail. ` +
-            `(2) Preserve the person's face COMPLETELY: same facial features, skin tone, expression, hair, and head position — do NOT change anything above the shoulders. ` +
+            `This image is a side-by-side collage. The LEFT half shows a person. The RIGHT half shows a dress/outfit. ` +
+            `Your task: generate a single photorealistic image of the person from the LEFT wearing the exact dress from the RIGHT. ` +
+            `CRITICAL RULES: ` +
+            `(1) Reproduce the dress EXACTLY — every color, pattern, embroidery, print, texture, cut, neckline, sleeve length, and hem must be identical to the right-side reference. Do NOT alter any design detail. ` +
+            `(2) Preserve the person's face COMPLETELY — same facial features, skin tone, expression, hair, and head position. Do NOT change anything above the shoulders. ` +
             `(3) Keep the person's body proportions, posture, and background unchanged. ` +
             `(4) Only replace the clothing — nothing else. ` +
-            `Output: photorealistic full-body fashion photo, sharp details, natural lighting.`;
+            `Output: a single photorealistic full-body fashion photo of the person wearing the dress, sharp details, natural lighting.`;
 
-          // Strip data URL prefix → raw base64
-          const base64 = croppedImage.split(",")[1];
-
-          const imgElement = await puter.ai.txt2img({
-            prompt,
+          const imgElement = await puter.ai.txt2img(prompt, {
             model: "gemini-2.5-flash-image-preview",
-            input_image: base64,
+            input_image: collageBase64,
             input_image_mime_type: "image/png",
           });
 
