@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
-import axios from "axios";
+import fs from "fs";
+import path from "path";
+
+// Allow up to 60s on Vercel Pro; Hobby plan caps at 10s
+export const maxDuration = 60;
 
 // gemini-2.5-flash-image supports image output via generateContent
-// Docs: https://ai.google.dev/gemini-api/docs/image-generation
 const GEMINI_MODEL = "gemini-2.5-flash-image";
 
 export async function POST(request) {
@@ -30,22 +33,18 @@ export async function POST(request) {
       );
     }
 
-    // ── 1. Fetch dress image → base64 ─────────────────────────────────────────
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-    const dressUrl = `${baseUrl}${dressFile}`;
+    // ── 1. Read dress image from disk — avoids self-referencing HTTP fetch that breaks on Vercel ──
     let dressBase64 = "";
     let dressMime = "image/png";
 
     try {
-      const dressRes = await axios.get(dressUrl, {
-        responseType: "arraybuffer",
-        timeout: 10000,
-      });
-      dressMime =
-        dressRes.headers["content-type"]?.split(";")[0] || "image/png";
-      dressBase64 = Buffer.from(dressRes.data).toString("base64");
+      const filePath = path.join(process.cwd(), "public", dressFile);
+      const fileBuffer = fs.readFileSync(filePath);
+      const ext = path.extname(dressFile).toLowerCase().replace(".", "");
+      dressMime = ext === "jpg" || ext === "jpeg" ? "image/jpeg" : "image/png";
+      dressBase64 = fileBuffer.toString("base64");
     } catch (err) {
-      console.error("[Gemini] Failed to fetch dress image:", err.message);
+      console.error("[Gemini] Failed to read dress image from disk:", err.message);
       return NextResponse.json(
         { error: "Could not load dress image" },
         { status: 500 },
@@ -64,9 +63,7 @@ export async function POST(request) {
     const userBase64 = userMatch[2];
 
     // ── 3. Build prompt ───────────────────────────────────────────────────────
-    const stylingNote = extraPrompt
-      ? ` Additional styling: ${extraPrompt}.`
-      : "";
+    const stylingNote = extraPrompt ? ` Additional styling: ${extraPrompt}.` : "";
     const geminiPrompt =
       `Virtual try-on task: dress the person from the first image in the exact outfit shown in the second image. ` +
       `CRITICAL RULES — follow every one strictly: ` +
@@ -93,7 +90,7 @@ export async function POST(request) {
       config: {
         responseModalities: ["IMAGE", "TEXT"],
         imageConfig: {
-          aspectRatio: "2:3", // portrait — good for fashion
+          aspectRatio: "2:3",
         },
       },
     });
