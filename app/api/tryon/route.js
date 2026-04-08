@@ -1,18 +1,16 @@
 import { NextResponse } from "next/server";
 import axios from "axios";
-import fs from "fs";
-import path from "path";
 
 // Allow up to 60s on Vercel Pro; Hobby plan caps at 10s
 export const maxDuration = 60;
 
 export async function POST(request) {
   try {
-    const { userImage, dressFile, dressName } = await request.json();
+    const { collageImage } = await request.json();
 
-    if (!userImage || !dressFile) {
+    if (!collageImage) {
       return NextResponse.json(
-        { error: "Missing userImage or dressFile" },
+        { error: "Missing collageImage" },
         { status: 400 },
       );
     }
@@ -25,26 +23,23 @@ export async function POST(request) {
       );
     }
 
-    // Read dress image from disk — avoids self-referencing HTTP fetch that breaks on Vercel
-    let dressBase64 = "";
-    try {
-      const filePath = path.join(process.cwd(), "public", dressFile);
-      const fileBuffer = fs.readFileSync(filePath);
-      const ext = path.extname(dressFile).toLowerCase().replace(".", "");
-      const mime = ext === "jpg" || ext === "jpeg" ? "image/jpeg" : "image/png";
-      dressBase64 = `data:${mime};base64,${fileBuffer.toString("base64")}`;
-    } catch {
-      // fallback: use public URL if disk read fails
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "";
-      dressBase64 = baseUrl ? `${baseUrl}${dressFile}` : dressFile;
-    }
+    // ── Build prompt (mirrors Puter prompt in page.js) ───────────────────────
+    const prompt =
+      `This image is a side-by-side collage. The LEFT half shows a person. The RIGHT half shows a dress/outfit. ` +
+      `Your task: generate a single photorealistic image of the person from the LEFT wearing the exact dress from the RIGHT. ` +
+      `CRITICAL RULES: ` +
+      `(1) Reproduce the dress EXACTLY — every color, pattern, embroidery, print, texture, cut, neckline, sleeve length, and hem must be identical to the right-side reference. Do NOT alter any design detail. ` +
+      `(2) Preserve the person's face COMPLETELY — same facial features, skin tone, expression, hair, and head position. Do NOT change anything above the shoulders. ` +
+      `(3) Keep the person's body proportions, posture, and background unchanged. ` +
+      `(4) Only replace the clothing — nothing else. ` +
+      `Output: a single photorealistic full-body fashion photo of the person wearing the dress, sharp details, natural lighting.`;
 
     const payload = {
       key: apiKey,
-      prompt: `Virtual try-on: a person wearing the exact "${dressName}" outfit with every design detail, color, pattern, and texture reproduced precisely as in the reference. Preserve the person's exact face, skin tone, body shape, and background. Only replace the clothing, change nothing else. Full body, photorealistic, high quality, fashion photography.`,
-      negative_prompt: "blurry, distorted, low quality, artifacts, deformed",
-      init_image: userImage,
-      control_image: dressBase64,
+      prompt,
+      negative_prompt:
+        "blurry, distorted, low quality, artifacts, deformed, split image, collage, two people, side by side",
+      init_image: collageImage,
       model_id: "sdxl",
       width: 512,
       height: 768,
@@ -57,7 +52,7 @@ export async function POST(request) {
       track_id: null,
     };
 
-    console.log("[TryOn API] Sending request to ModelsLab...");
+    console.log("[TryOn API] Sending collage request to ModelsLab...");
     const startTime = Date.now();
 
     const response = await axios.post(
@@ -95,10 +90,7 @@ export async function POST(request) {
         const pollRes = await axios.post(
           fetchUrl,
           { key: apiKey },
-          {
-            headers: { "Content-Type": "application/json" },
-            timeout: 10000,
-          },
+          { headers: { "Content-Type": "application/json" }, timeout: 10000 },
         );
         if (pollRes.data?.status === "success" && pollRes.data?.output?.[0]) {
           console.log(`[TryOn API] Polled success on attempt ${i + 1}`);

@@ -1,26 +1,18 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
-import fs from "fs";
-import path from "path";
 
 // Allow up to 60s on Vercel Pro; Hobby plan caps at 10s
 export const maxDuration = 60;
 
-// gemini-2.5-flash-image supports image output via generateContent
 const GEMINI_MODEL = "gemini-2.5-flash-image";
 
 export async function POST(request) {
   try {
-    const {
-      userImage,
-      dressFile,
-      dressName,
-      prompt: extraPrompt,
-    } = await request.json();
+    const { collageImage } = await request.json();
 
-    if (!userImage || !dressFile) {
+    if (!collageImage) {
       return NextResponse.json(
-        { error: "Missing userImage or dressFile" },
+        { error: "Missing collageImage" },
         { status: 400 },
       );
     }
@@ -33,92 +25,62 @@ export async function POST(request) {
       );
     }
 
-    // ── 1. Read dress image from disk — avoids self-referencing HTTP fetch that breaks on Vercel ──
-    let dressBase64 = "";
-    let dressMime = "image/png";
-
-    try {
-      const filePath = path.join(process.cwd(), "public", dressFile);
-      const fileBuffer = fs.readFileSync(filePath);
-      const ext = path.extname(dressFile).toLowerCase().replace(".", "");
-      dressMime = ext === "jpg" || ext === "jpeg" ? "image/jpeg" : "image/png";
-      dressBase64 = fileBuffer.toString("base64");
-    } catch (err) {
-      console.error("[Gemini] Failed to read dress image from disk:", err.message);
+    // ── Strip data URL prefix ─────────────────────────────────────────────────
+    const collageMatch = collageImage.match(/^data:(image\/\w+);base64,(.+)$/);
+    if (!collageMatch) {
       return NextResponse.json(
-        { error: "Could not load dress image" },
-        { status: 500 },
-      );
-    }
-
-    // ── 2. Strip data URL prefix from user image ──────────────────────────────
-    const userMatch = userImage.match(/^data:(image\/\w+);base64,(.+)$/);
-    if (!userMatch) {
-      return NextResponse.json(
-        { error: "Invalid userImage format" },
+        { error: "Invalid collageImage format" },
         { status: 400 },
       );
     }
-    const userMime = userMatch[1];
-    const userBase64 = userMatch[2];
+    const collageBase64 = collageMatch[2];
 
-    // ── 3. Build prompt ───────────────────────────────────────────────────────
-    const stylingNote = extraPrompt ? ` Additional styling: ${extraPrompt}.` : "";
-    const geminiPrompt =
-      `Virtual try-on task: dress the person from the first image in the exact outfit shown in the second image. ` +
-      `CRITICAL RULES — follow every one strictly: ` +
-      `(1) Reproduce the outfit EXACTLY as shown in the second image: every color, pattern, embroidery, print, texture, fabric, cut, neckline, collar, sleeve length, hem, and decorative detail must be pixel-perfect identical — do NOT alter, simplify, recolor, or reinterpret any design element whatsoever. ` +
-      `(2) Preserve the person's face COMPLETELY: same facial features, skin tone, complexion, expression, hair style, hair color, and head position — do NOT change anything above the shoulders. ` +
-      `(3) Keep the person's body shape, posture, height proportions, and original background unchanged. ` +
-      `(4) Only replace the clothing — nothing else in the image should change. ` +
-      `Output: photorealistic full-body portrait, sharp details, natural lighting, suitable for e-commerce.` +
-      stylingNote;
+    // ── Build prompt (mirrors Puter prompt in page.js) ───────────────────────
+    const prompt =
+      `This image is a side-by-side collage. The LEFT half shows a person. The RIGHT half shows a dress/outfit. ` +
+      `Your task: generate a single photorealistic image of the person from the LEFT wearing the exact dress from the RIGHT. ` +
+      `CRITICAL RULES: ` +
+      `(1) Reproduce the dress EXACTLY — every color, pattern, embroidery, print, texture, cut, neckline, sleeve length, and hem must be identical to the right-side reference. Do NOT alter any design detail. ` +
+      `(2) Preserve the person's face COMPLETELY — same facial features, skin tone, expression, hair, and head position. Do NOT change anything above the shoulders. ` +
+      `(3) Keep the person's body proportions, posture, and background unchanged. ` +
+      `(4) Only replace the clothing — nothing else. ` +
+      `Output: a single photorealistic full-body fashion photo of the person wearing the dress, sharp details, natural lighting.`;
 
-    // ── 4. Call Gemini ────────────────────────────────────────────────────────
+    // ── 5. Call Gemini with collage ───────────────────────────────────────────
     const ai = new GoogleGenAI({ apiKey });
 
-    console.log(`[Gemini TryOn] Sending request with model: ${GEMINI_MODEL}`);
+    console.log(`[Gemini TryOn] Sending collage request with model: ${GEMINI_MODEL}`);
     const startTime = Date.now();
 
     const response = await ai.models.generateContent({
       model: GEMINI_MODEL,
       contents: [
-        { text: geminiPrompt },
-        { inlineData: { mimeType: userMime, data: userBase64 } },
-        { inlineData: { mimeType: dressMime, data: dressBase64 } },
+        { text: prompt },
+        { inlineData: { mimeType: "image/png", data: collageBase64 } },
       ],
       config: {
         responseModalities: ["IMAGE", "TEXT"],
-        imageConfig: {
-          aspectRatio: "2:3",
-        },
+        imageConfig: { aspectRatio: "2:3" },
       },
     });
 
     console.log(`[Gemini TryOn] Response in ${Date.now() - startTime}ms`);
 
-    // ── 5. Extract image part ─────────────────────────────────────────────────
+    // ── 6. Extract image part ─────────────────────────────────────────────────
     const parts = response.candidates?.[0]?.content?.parts ?? [];
-    const imagePart = parts.find((p) =>
-      p.inlineData?.mimeType?.startsWith("image/"),
-    );
+    const imagePart = parts.find((p) => p.inlineData?.mimeType?.startsWith("image/"));
 
     if (!imagePart) {
       const textPart = parts.find((p) => p.text);
       console.error("[Gemini TryOn] No image returned. Text:", textPart?.text);
       return NextResponse.json(
-        {
-          error:
-            "Gemini did not return an image. Try a different photo or dress.",
-        },
+        { error: "Gemini did not return an image. Try a different photo or dress." },
         { status: 422 },
       );
     }
 
-    const outputMime = imagePart.inlineData.mimeType;
-    const outputBase64 = imagePart.inlineData.data;
     return NextResponse.json({
-      output: `data:${outputMime};base64,${outputBase64}`,
+      output: `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`,
     });
   } catch (err) {
     console.error("[Gemini TryOn Error]", err?.message);
@@ -129,7 +91,7 @@ export async function POST(request) {
     else if (msg.includes("quota") || msg.includes("429"))
       msg = "Gemini API quota exceeded. Please try again later.";
     else if (msg.includes("404"))
-      msg = `Model not found. Check your Gemini API access tier.`;
+      msg = "Model not found. Check your Gemini API access tier.";
 
     return NextResponse.json({ error: msg }, { status: 500 });
   }

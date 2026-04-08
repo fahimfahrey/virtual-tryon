@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import DressList from "@/components/DressList";
@@ -88,7 +88,15 @@ export default function Home() {
   const [provider, setProvider] = useState(PROVIDERS[0]);
   const [modalOpen, setModalOpen] = useState(false);
   const [poseReady, setPoseReady] = useState(false);
+  const [collagePreview, setCollagePreview] = useState(null); // debug collage
   const apiCallRef = useRef(false);
+
+  // Auto-dismiss collage preview after 10s
+  useEffect(() => {
+    if (!collagePreview) return;
+    const t = setTimeout(() => setCollagePreview(null), 10000);
+    return () => clearTimeout(t);
+  }, [collagePreview]);
 
   const handleCropReady = useCallback((dataUrl) => {
     setCroppedImage(dataUrl);
@@ -130,6 +138,9 @@ export default function Home() {
           // Build side-by-side collage: [user | dress] → single PNG base64
           const collageBase64 = await buildCollage(croppedImage, dress.file);
 
+          // Show collage preview for debugging
+          setCollagePreview(`data:image/png;base64,${collageBase64}`);
+
           const prompt =
             `This image is a side-by-side collage. The LEFT half shows a person. The RIGHT half shows a dress/outfit. ` +
             `Your task: generate a single photorealistic image of the person from the LEFT wearing the exact dress from the RIGHT. ` +
@@ -149,11 +160,15 @@ export default function Home() {
           outputImage = imgElement.src; // data URL
         } else {
           // ── Server-side providers ───────────────────────────────────────────
+          // Build collage client-side so we can preview it (same as Puter path)
+          const collageBase64 = await buildCollage(croppedImage, dress.file);
+          setCollagePreview(`data:image/png;base64,${collageBase64}`);
+
           const res = await fetch(provider.endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              userImage: croppedImage,
+              collageImage: `data:image/png;base64,${collageBase64}`,
               dressFile: dress.file,
               dressName: dress.name,
             }),
@@ -276,6 +291,44 @@ export default function Home() {
         selectedDress={selectedDress}
         provider={provider}
       />
+      {/* ── Collage Debug Preview ── */}
+      {collagePreview && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)",
+          display: "flex", flexDirection: "column", alignItems: "center",
+          justifyContent: "center", zIndex: 9999, gap: 16,
+        }}>
+          <div style={{ color: "#aaa", fontSize: 12, letterSpacing: 2 }}>
+            COLLAGE PREVIEW — closes in 10s
+          </div>
+          <img
+            src={collagePreview}
+            alt="collage"
+            style={{ maxWidth: "90vw", maxHeight: "75vh", borderRadius: 8, border: "1px solid #333" }}
+          />
+          <div style={{ display: "flex", gap: 12 }}>
+            <a
+              href={collagePreview}
+              download="collage.png"
+              style={{
+                padding: "8px 20px", background: "#fff", color: "#000",
+                borderRadius: 6, fontSize: 13, fontWeight: 600, textDecoration: "none",
+              }}
+            >
+              Download
+            </a>
+            <button
+              onClick={() => setCollagePreview(null)}
+              style={{
+                padding: "8px 20px", background: "transparent", color: "#aaa",
+                border: "1px solid #444", borderRadius: 6, fontSize: 13, cursor: "pointer",
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
